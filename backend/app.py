@@ -6,6 +6,9 @@ from dotenv import load_dotenv
 from datetime import datetime
 import sys
 
+# Import database models
+from models import Meal, Ingredient, SessionLocal, init_db
+
 # Load environment variables from .env file
 load_dotenv()
 
@@ -16,9 +19,6 @@ CORS(app)  # Enable CORS for frontend communication
 # Configuration from environment variables
 USDA_API_KEY = os.getenv('USDA_API_KEY')
 USDA_API_URL = os.getenv('USDA_API_URL')
-
-# In-memory storage for meals (temporary - will be replaced with database)
-meals_history = []
 
 # Validate configuration on startup
 if not USDA_API_KEY:
@@ -34,14 +34,32 @@ print(f"Starting Meal Prep Calculator Backend...")
 print(f"USDA API URL: {USDA_API_URL}")
 print(f"API Key configured: {'Yes' if USDA_API_KEY else 'No'}")
 
+# Initialize database tables if they don't exist
+try:
+    init_db()
+    print("Database initialized successfully")
+except Exception as e:
+    print(f"WARNING: Database initialization error: {e}", file=sys.stderr)
+
 @app.route('/health', methods=['GET'])
 def health_check():
     """Health check endpoint to verify service is running"""
+    db_status = 'unknown'
+    try:
+        from sqlalchemy import text
+        db = SessionLocal()
+        db.execute(text('SELECT 1'))
+        db.close()
+        db_status = 'connected'
+    except Exception as e:
+        db_status = f'error: {str(e)}'
+    
     return jsonify({
         'status': 'healthy',
         'timestamp': datetime.now().isoformat(),
         'service': 'meal-prep-backend',
-        'version': '1.0.0'
+        'version': '1.0.0',
+        'database': db_status
     }), 200
 
 @app.route('/api/search', methods=['GET'])
@@ -193,7 +211,7 @@ def calculate_meal():
 @app.route('/api/meals', methods=['POST'])
 def save_meal():
     """
-    Save a meal to history (temporary in-memory storage)
+    Save a meal to database
     Request body: {
         name: string,
         ingredients: array,
@@ -208,52 +226,129 @@ def save_meal():
     if not data:
         return jsonify({'error': 'No JSON data provided'}), 400
     
-    meal = {
-        'id': len(meals_history) + 1,
-        'name': data.get('name', 'Unnamed Meal'),
-        'ingredients': data.get('ingredients', []),
-        'nutritionTotal': data.get('nutritionTotal', {}),
-        'nutritionPerServing': data.get('nutritionPerServing', {}),
-        'servings': data.get('servings', 1),
-        'createdAt': datetime.now().isoformat()
-    }
+    db = SessionLocal()
     
-    meals_history.append(meal)
-    
-    print(f"Saved meal: {meal['name']} (ID: {meal['id']})")
-    
-    return jsonify(meal), 201
+    try:
+        # Create meal object
+        meal = Meal(
+            name=data.get('name', 'Unnamed Meal'),
+            servings=data.get('servings', 1),
+            total_protein=data.get('nutritionTotal', {}).get('protein', 0),
+            total_fat=data.get('nutritionTotal', {}).get('fat', 0),
+            total_carbs=data.get('nutritionTotal', {}).get('carbs', 0),
+            total_calories=data.get('nutritionTotal', {}).get('calories', 0),
+            protein_per_serving=data.get('nutritionPerServing', {}).get('protein', 0),
+            fat_per_serving=data.get('nutritionPerServing', {}).get('fat', 0),
+            carbs_per_serving=data.get('nutritionPerServing', {}).get('carbs', 0),
+            calories_per_serving=data.get('nutritionPerServing', {}).get('calories', 0)
+        )
+        
+        # Add meal to database
+        db.add(meal)
+        db.flush()  # Get the meal ID
+        
+        # Add ingredients
+        for ing_data in data.get('ingredients', []):
+            ingredient = Ingredient(
+                meal_id=meal.id,
+                fdc_id=ing_data.get('fdcId'),
+                description=ing_data.get('description', ''),
+                brand_name=ing_data.get('brandName', ''),
+                grams=ing_data.get('grams', 0),
+                protein=ing_data.get('nutrients', {}).get('protein', 0),
+                fat=ing_data.get('nutrients', {}).get('fat', 0),
+                carbs=ing_data.get('nutrients', {}).get('carbs', 0),
+                calories=ing_data.get('nutrients', {}).get('calories', 0)
+            )
+            db.add(ingredient)
+        
+        db.commit()
+        db.refresh(meal)
+        
+        print(f"Saved meal to database: {meal.name} (ID: {meal.id})")
+        
+        return jsonify(meal.to_dict()), 201
+        
+    except Exception as e:
+        db.rollback()
+        print(f"Error saving meal: {str(e)}", file=sys.stderr)
+        return jsonify({'error': f'Error saving meal: {str(e)}'}), 500
+    finally:
+        db.close()
 
 @app.route('/api/meals', methods=['GET'])
 def get_meals():
     """
-    Retrieve meal history
+    Retrieve meal history from database
     Returns: Array of all saved meals
     """
-    return jsonify({
-        'total': len(meals_history),
-        'meals': meals_history
-    }), 200
+    db = SessionLocal()
+    
+    try:
+        meals = db.query(Meal).order_by(Meal.created_at.desc()).all()
+        
+        return jsonify({
+            'total': len(meals),
+            'meals': [meal.to_dict() for meal in meals]
+        }), 200
+        
+    except Exception as e:
+        print(f"Error fetching meals: {str(e)}", file=sys.stderr)
+        return jsonify({'error': f'Error fetching meals: {str(e)}'}), 500
+    finally:
+        db.close()
+
+@app.route('/api/meals/<int:meal_id>', methods=['GET'])
+def get_meal(meal_id):
+    """
+    Get a specific meal by ID
+    Path parameter: meal_id (integer)
+    Returns: Meal details with ingredients
+    """
+    db = SessionLocal()
+    
+    try:
+        meal = db.query(Meal).filter(Meal.id == meal_id).first()
+        
+        if not meal:
+            return jsonify({'error': 'Meal not found'}), 404
+        
+        return jsonify(meal.to_dict()), 200
+        
+    except Exception as e:
+        print(f"Error fetching meal: {str(e)}", file=sys.stderr)
+        return jsonify({'error': f'Error fetching meal: {str(e)}'}), 500
+    finally:
+        db.close()
 
 @app.route('/api/meals/<int:meal_id>', methods=['DELETE'])
 def delete_meal(meal_id):
     """
-    Delete a meal from history
+    Delete a meal from database
     Path parameter: meal_id (integer)
     Returns: Success message
     """
-    global meals_history
+    db = SessionLocal()
     
-    meal = next((m for m in meals_history if m['id'] == meal_id), None)
-    
-    if not meal:
-        return jsonify({'error': 'Meal not found'}), 404
-    
-    meals_history = [m for m in meals_history if m['id'] != meal_id]
-    
-    print(f"Deleted meal ID: {meal_id}")
-    
-    return jsonify({'message': 'Meal deleted successfully'}), 200
+    try:
+        meal = db.query(Meal).filter(Meal.id == meal_id).first()
+        
+        if not meal:
+            return jsonify({'error': 'Meal not found'}), 404
+        
+        db.delete(meal)
+        db.commit()
+        
+        print(f"Deleted meal from database: ID {meal_id}")
+        
+        return jsonify({'message': 'Meal deleted successfully'}), 200
+        
+    except Exception as e:
+        db.rollback()
+        print(f"Error deleting meal: {str(e)}", file=sys.stderr)
+        return jsonify({'error': f'Error deleting meal: {str(e)}'}), 500
+    finally:
+        db.close()
 
 def extract_nutrients(food_nutrients):
     """
