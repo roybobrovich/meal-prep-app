@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Search Food</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 Search Food</h1>
+        
+        <div class="menu">
+            <a href="/" class="button">Home</a>
+            <a href="/meals" class="button">View Meals</a>
+        </div>
+
+        <div class="section">
+            <form method="POST" action="/search">
+                <input type="text" name="query" placeholder="Search for food (e.g., chicken)" required>
+                <button type="submit">Search</button>
+            </form>
+        </div>
+    </div>
+</body>
+</html>

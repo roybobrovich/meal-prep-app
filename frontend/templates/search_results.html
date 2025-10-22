@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Search Results</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Search Results for "{{ query }}"</h1>
+        
+        <div class="menu">
+            <a href="/" class="button">Home</a>
+            <a href="/search" class="button">New Search</a>
+            <a href="/meals" class="button">View Meals</a>
+        </div>
+
+        <div class="section">
+            {% if foods %}
+                {% for food in foods %}
+                <div class="food-item">
+                    <h3>{{ food.description }}</h3>
+                    {% if food.brandName %}
+                    <p><strong>Brand:</strong> {{ food.brandName }}</p>
+                    {% endif %}
+                    <p>
+                        <strong>Per 100g:</strong><br>
+                        Protein: {{ food.nutrients.protein }}g | 
+                        Fat: {{ food.nutrients.fat }}g | 
+                        Carbs: {{ food.nutrients.carbs }}g | 
+                        Calories: {{ food.nutrients.calories }}
+                    </p>
+                </div>
+                {% endfor %}
+            {% else %}
+                <p>No results found. Try a different search term.</p>
+            {% endif %}
+        </div>
+    </div>
+</body>
+</html>

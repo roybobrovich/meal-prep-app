@@ -1,4 +1,3 @@
-
 services:
   # PostgreSQL Database
   db:
@@ -33,7 +32,7 @@ services:
       USDA_API_KEY: kNXQXGL92zW4fnMe5VxRHM6dHUvxaXwGsZ0MqUJ0
       USDA_API_URL: https://api.nal.usda.gov/fdc/v1
       
-      # Database Configuration (note: db is the service name!)
+      # Database Configuration
       DB_HOST: db
       DB_PORT: 5432
       DB_NAME: meal_prep_db
@@ -53,6 +52,27 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
+
+  # Frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: meal-prep-frontend
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      PORT: 3000
+      BACKEND_URL: http://backend:5000
+    depends_on:
+      - backend
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
 
 # Volumes for data persistence
 volumes:

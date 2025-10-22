@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Saved Meals</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>📋 Saved Meals</h1>
+        
+        <div class="menu">
+            <a href="/" class="button">Home</a>
+            <a href="/search" class="button">Search Food</a>
+        </div>
+
+        <div class="section">
+            {% if meals %}
+                {% for meal in meals %}
+                <div class="meal-item">
+                    <h3>{{ meal.name }}</h3>
+                    <p><strong>Servings:</strong> {{ meal.servings }}</p>
+                    
+                    <h4>Ingredients:</h4>
+                    <ul>
+                        {% for ingredient in meal.ingredients %}
+                        <li>{{ ingredient.description }} - {{ ingredient.grams }}g</li>
+                        {% endfor %}
+                    </ul>
+                    
+                    <h4>Nutrition (Total):</h4>
+                    <p>
+                        Protein: {{ "%.1f"|format(meal.nutritionTotal.protein) }}g | 
+                        Fat: {{ "%.1f"|format(meal.nutritionTotal.fat) }}g | 
+                        Carbs: {{ "%.1f"|format(meal.nutritionTotal.carbs) }}g | 
+                        Calories: {{ "%.0f"|format(meal.nutritionTotal.calories) }}
+                    </p>
+                    
+                    <h4>Nutrition (Per Serving):</h4>
+                    <p>
+                        Protein: {{ "%.1f"|format(meal.nutritionPerServing.protein) }}g | 
+                        Fat: {{ "%.1f"|format(meal.nutritionPerServing.fat) }}g | 
+                        Carbs: {{ "%.1f"|format(meal.nutritionPerServing.carbs) }}g | 
+                        Calories: {{ "%.0f"|format(meal.nutritionPerServing.calories) }}
+                    </p>
+                    
+                    <form method="POST" action="/meals/delete/{{ meal.id }}" style="display:inline;">
+                        <button type="submit" onclick="return confirm('Are you sure?')">Delete</button>
+                    </form>
+                </div>
+                {% endfor %}
+            {% else %}
+                <p>No saved meals yet. Start by searching for food!</p>
+            {% endif %}
+        </div>
+    </div>
+</body>
+</html>
