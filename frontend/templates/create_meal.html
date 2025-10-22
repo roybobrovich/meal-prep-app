@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Create Meal</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>🍳 Create Meal</h1>
+        
+        <div class="menu">
+            <a href="/" class="button">Home</a>
+            <a href="/meals" class="button">View Saved Meals</a>
+        </div>
+
+        <!-- Meal Info -->
+        <div class="section">
+            <h2>Meal Information</h2>
+            <form method="POST" action="/update-meal-info">
+                <input type="text" name="name" value="{{ meal.name }}" placeholder="Meal name" required>
+                <input type="number" name="servings" value="{{ meal.servings }}" min="1" placeholder="Servings" required>
+                <button type="submit">Update Info</button>
+            </form>
+        </div>
+
+        <!-- Search for Ingredients -->
+        <div class="section">
+            <h2>Add Ingredients</h2>
+            <form method="POST" action="/search-ingredient">
+                <input type="text" name="query" placeholder="Search for food (e.g., chicken)" 
+                       value="{{ query if query else '' }}" required>
+                <button type="submit">Search</button>
+            </form>
+
+            {% if search_results %}
+            <div style="margin-top: 20px;">
+                <h3>Search Results:</h3>
+                {% for food in search_results %}
+                <div class="food-item">
+                    <strong>{{ food.description }}</strong>
+                    {% if food.brandName %}
+                    <br><em>{{ food.brandName }}</em>
+                    {% endif %}
+                    <br>
+                    <small>
+                        Per 100g: 
+                        Protein: {{ food.nutrients.protein }}g | 
+                        Fat: {{ food.nutrients.fat }}g | 
+                        Carbs: {{ food.nutrients.carbs }}g | 
+                        Calories: {{ food.nutrients.calories }}
+                    </small>
+                    
+                    <form method="POST" action="/add-ingredient" style="margin-top: 10px;">
+                        <input type="hidden" name="fdcId" value="{{ food.fdcId }}">
+                        <input type="hidden" name="description" value="{{ food.description }}">
+                        <input type="hidden" name="brandName" value="{{ food.brandName }}">
+                        <input type="hidden" name="protein" value="{{ food.nutrients.protein }}">
+                        <input type="hidden" name="fat" value="{{ food.nutrients.fat }}">
+                        <input type="hidden" name="carbs" value="{{ food.nutrients.carbs }}">
+                        <input type="hidden" name="calories" value="{{ food.nutrients.calories }}">
+                        <input type="number" name="grams" value="100" min="1" placeholder="Grams" required>
+                        <button type="submit">Add to Meal</button>
+                    </form>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Current Ingredients -->
+        <div class="section">
+            <h2>Current Ingredients</h2>
+            {% if meal.ingredients %}
+                {% for ingredient in meal.ingredients %}
+                <div class="ingredient-item">
+                    <strong>{{ ingredient.description }}</strong> - {{ ingredient.grams }}g
+                    <br>
+                    <small>
+                        Protein: {{ "%.1f"|format(ingredient.nutrients.protein * ingredient.grams / 100) }}g | 
+                        Fat: {{ "%.1f"|format(ingredient.nutrients.fat * ingredient.grams / 100) }}g | 
+                        Carbs: {{ "%.1f"|format(ingredient.nutrients.carbs * ingredient.grams / 100) }}g | 
+                        Calories: {{ "%.0f"|format(ingredient.nutrients.calories * ingredient.grams / 100) }}
+                    </small>
+                    <form method="POST" action="/remove-ingredient/{{ loop.index0 }}" style="display:inline;">
+                        <button type="submit" style="background-color: #f44336;">Remove</button>
+                    </form>
+                </div>
+                {% endfor %}
+            {% else %}
+                <p>No ingredients added yet. Search and add ingredients above.</p>
+            {% endif %}
+        </div>
+
+        <!-- Nutrition Summary -->
+        {% if meal.ingredients %}
+        <div class="section" style="background-color: #e8f5e9;">
+            <h2>Nutrition Summary</h2>
+            <div style="padding: 10px;">
+                <h3>Total:</h3>
+                <p>
+                    Protein: {{ nutrition.total.protein }}g | 
+                    Fat: {{ nutrition.total.fat }}g | 
+                    Carbs: {{ nutrition.total.carbs }}g | 
+                    Calories: {{ nutrition.total.calories }}
+                </p>
+                
+                <h3>Per Serving ({{ meal.servings }} servings):</h3>
+                <p>
+                    Protein: {{ nutrition.perServing.protein }}g | 
+                    Fat: {{ nutrition.perServing.fat }}g | 
+                    Carbs: {{ nutrition.perServing.carbs }}g | 
+                    Calories: {{ nutrition.perServing.calories }}
+                </p>
+            </div>
+
+            <form method="POST" action="/save-meal" style="display:inline;">
+                <button type="submit" style="background-color: #FF9800; font-size: 16px; padding: 12px 30px;">
+                    💾 Save Meal
+                </button>
+            </form>
+
+            <form method="POST" action="/clear-meal" style="display:inline;">
+                <button type="submit" style="background-color: #f44336;" 
+                        onclick="return confirm('Clear all ingredients?')">
+                    🗑️ Clear Meal
+                </button>
+            </form>
+        </div>
+        {% endif %}
+    </div>
+</body>
+</html>

@@ -65,6 +65,7 @@ services:
     environment:
       PORT: 3000
       BACKEND_URL: http://backend:5000
+      SECRET_KEY: change-this-in-production-to-random-string
     depends_on:
       - backend
     healthcheck:
