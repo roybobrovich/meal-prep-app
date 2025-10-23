@@ -1,8 +1,8 @@
 replicaCount: 2
 
 image:
-  repository: ACCOUNT_ID.dkr.ecr.REGION.amazonaws.com/meal-prep-frontend
-  pullPolicy: IfNotPresent
+  repository: roybob/meal-prep-frontend
+  pullPolicy: Always
   tag: "latest"
 
 service:
@@ -35,3 +35,16 @@ readinessProbe:
     port: 3000
   initialDelaySeconds: 5
   periodSeconds: 5
+
+# Ingress Configuration
+ingress:
+  enabled: true
+  className: "nginx"
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+  hosts:
+  - host: meal-prep.local
+    paths:
+    - path: /
+      pathType: Prefix
+  tls: []
