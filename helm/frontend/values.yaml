@@ -1,0 +1,37 @@
+replicaCount: 2
+
+image:
+  repository: ACCOUNT_ID.dkr.ecr.REGION.amazonaws.com/meal-prep-frontend
+  pullPolicy: IfNotPresent
+  tag: "latest"
+
+service:
+  type: ClusterIP
+  port: 3000
+
+env:
+  backendUrl: "http://meal-prep-backend:5000"
+  secretKey: "change-this-in-production-to-random-string"
+  port: "3000"
+
+resources:
+  limits:
+    cpu: 300m
+    memory: 256Mi
+  requests:
+    cpu: 150m
+    memory: 128Mi
+
+livenessProbe:
+  httpGet:
+    path: /health
+    port: 3000
+  initialDelaySeconds: 15
+  periodSeconds: 10
+
+readinessProbe:
+  httpGet:
+    path: /health
+    port: 3000
+  initialDelaySeconds: 5
+  periodSeconds: 5

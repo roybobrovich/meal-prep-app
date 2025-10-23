@@ -1,0 +1,10 @@
+apiVersion: v2
+name: meal-prep-frontend
+description: Meal Prep Calculator Frontend Web UI
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
+keywords:
+  - flask
+  - frontend
+  - ui

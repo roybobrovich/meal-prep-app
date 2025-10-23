@@ -1,0 +1,10 @@
+apiVersion: v2
+name: meal-prep-db
+description: PostgreSQL Database for Meal Prep Calculator
+type: application
+version: 1.0.0
+appVersion: "16"
+keywords:
+  - postgresql
+  - database
+

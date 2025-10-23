@@ -1,0 +1,63 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Chart.Name }}
+  labels:
+    app: {{ .Chart.Name }}
+    version: {{ .Chart.AppVersion }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ .Chart.Name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Chart.Name }}
+        version: {{ .Chart.AppVersion }}
+    spec:
+      containers:
+      - name: backend
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        ports:
+        - containerPort: {{ .Values.service.port }}
+          name: http
+        env:
+        # USDA API Configuration
+        - name: USDA_API_KEY
+          value: "{{ .Values.env.usdaApiKey }}"
+        - name: USDA_API_URL
+          value: "{{ .Values.env.usdaApiUrl }}"
+        
+        # Database Configuration
+        - name: DB_HOST
+          value: "{{ .Values.env.dbHost }}"
+        - name: DB_PORT
+          value: "{{ .Values.env.dbPort }}"
+        - name: DB_NAME
+          value: "{{ .Values.env.dbName }}"
+        - name: DB_USER
+          value: "{{ .Values.env.dbUser }}"
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: meal-prep-db-secret
+              key: password
+        
+        # Flask Configuration
+        - name: FLASK_ENV
+          value: "{{ .Values.env.flaskEnv }}"
+        - name: FLASK_DEBUG
+          value: "{{ .Values.env.flaskDebug }}"
+        - name: PORT
+          value: "{{ .Values.env.port }}"
+        
+        resources:
+          {{- toYaml .Values.resources | nindent 10 }}
+        
+        livenessProbe:
+          {{- toYaml .Values.livenessProbe | nindent 10 }}
+        
+        readinessProbe:
+          {{- toYaml .Values.readinessProbe | nindent 10 }}

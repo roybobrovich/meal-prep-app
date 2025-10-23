@@ -1,0 +1,51 @@
+# Default values for meal-prep-backend
+
+replicaCount: 2  # How many backend pods to run
+
+image:
+  repository: ACCOUNT_ID.dkr.ecr.REGION.amazonaws.com/meal-prep-backend  # Change this!
+  pullPolicy: IfNotPresent
+  tag: "latest"
+
+service:
+  type: ClusterIP
+  port: 5000
+
+env:
+  # USDA API Configuration
+  usdaApiKey: "kNXQXGL92zW4fnMe5VxRHM6dHUvxaXwGsZ0MqUJ0"
+  usdaApiUrl: "https://api.nal.usda.gov/fdc/v1"
+  
+  # Database Configuration
+  dbHost: "meal-prep-db"  # Service name of database
+  dbPort: "5432"
+  dbName: "meal_prep_db"
+  dbUser: "postgres"
+  # dbPassword is in secret!
+  
+  # Flask Configuration
+  flaskEnv: "production"
+  flaskDebug: "False"
+  port: "5000"
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 512Mi
+  requests:
+    cpu: 250m
+    memory: 256Mi
+
+livenessProbe:
+  httpGet:
+    path: /health
+    port: 5000
+  initialDelaySeconds: 30
+  periodSeconds: 10
+
+readinessProbe:
+  httpGet:
+    path: /health
+    port: 5000
+  initialDelaySeconds: 10
+  periodSeconds: 5

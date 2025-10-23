@@ -1,0 +1,27 @@
+image:
+  repository: postgres
+  pullPolicy: IfNotPresent
+  tag: "16-alpine"
+
+service:
+  type: ClusterIP
+  port: 5432
+
+env:
+  postgresDb: "meal_prep_db"
+  postgresUser: "postgres"
+  postgresPassword: "postgres"  # Change in production!
+
+persistence:
+  enabled: true
+  storageClass: ""  # Use default storage class
+  accessMode: ReadWriteOnce
+  size: 5Gi
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 512Mi
+  requests:
+    cpu: 250m
+    memory: 256Mi
