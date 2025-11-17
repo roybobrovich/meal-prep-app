@@ -1,6 +1,6 @@
 # Default values for meal-prep-backend
 
-replicaCount: 2  # How many backend pods to run
+replicaCount: 3  # How many backend pods to run
 
 image:
   repository: roybob/meal-prep-backend
