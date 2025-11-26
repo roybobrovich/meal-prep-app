@@ -1,237 +1,212 @@
-# 🍽️ Meal Prep Calculator - DevOps Final Project
+# 🍽️ Meal Prep Calculator - Full-Stack DevOps Project
 
-A full-stack microservices application demonstrating DevOps best practices including containerization, Kubernetes orchestration, and CI/CD pipelines.
+A production-grade meal preparation calculator application demonstrating modern DevOps practices and cloud-native architecture.
 
-## 📋 Project Overview
+![Project Status](https://img.shields.io/badge/status-production-green)
+![CI/CD](https://img.shields.io/badge/CI%2FCD-GitHub%20Actions-blue)
+![GitOps](https://img.shields.io/badge/GitOps-ArgoCD-orange)
+![IaC](https://img.shields.io/badge/IaC-Terraform-purple)
 
-The Meal Prep Calculator helps users:
-- Search for food nutritional information (via USDA API)
-- Build custom meals with multiple ingredients
-- Calculate total and per-serving nutritional values
-- Save and manage meal history
+## 🎯 Project Overview
+
+Calculate nutritional information for meal prep using real USDA food data. Built with microservices architecture and deployed using GitOps principles.
+
+**Live Demo:** http://meal-prep.local (when running locally)
 
 ## 🏗️ Architecture
-
-### Microservices Design
 ```
-┌─────────────┐
-│   Frontend  │ (Flask Templates - Port 3000)
-└──────┬──────┘
-       │
-┌──────▼──────┐
-│   Backend   │ (Flask API - Port 5000)
-└──────┬──────┘
-       │
-┌──────▼──────┐
-│  PostgreSQL │ (Database - Port 5432)
-└─────────────┘
+┌─────────────┐      ┌─────────────┐      ┌──────────────┐
+│   Frontend  │─────▶│   Backend   │─────▶│  PostgreSQL  │
+│  (Flask)    │◀─────│   (Flask)   │◀─────│   Database   │
+└─────────────┘      └─────────────┘      └──────────────┘
+       │                    │                      │
+       └────────────────────┴──────────────────────┘
+                            │
+                    ┌───────▼────────┐
+                    │  USDA FoodData │
+                    │   Central API  │
+                    └────────────────┘
 ```
 
-### Technology Stack
-
-**Frontend:**
-- Python Flask
-- Jinja2 Templates
-- HTML/CSS
-
-**Backend:**
-- Python Flask
-- SQLAlchemy ORM
-- USDA FoodData Central API integration
-
-**Database:**
-- PostgreSQL 16
-- Persistent storage with volumes
-
-**Infrastructure:**
-- Docker & Docker Compose
-- Kubernetes (Helm Charts)
-- minikube (local testing)
-
-## 🐳 Docker
-
-### Running with Docker Compose
-
-```bash
-# Build and start all services
-docker-compose up --build
-
-# Access application
-Frontend: http://localhost:3000
-Backend API: http://localhost:5000
+**Deployment Architecture:**
+```
+Developer → Git Push → GitHub Actions → Docker Hub
+                              ↓
+                         ArgoCD Sync
+                              ↓
+                    Kubernetes Cluster
+                              ↓
+                    ┌─────────┴─────────┐
+                    │                   │
+               Prometheus            Grafana
+              (Monitoring)         (Dashboards)
 ```
 
-### Docker Images
+## 🚀 Features
 
-Images are available on DockerHub:
-- `roybob/meal-prep-backend:latest`
-- `roybob/meal-prep-frontend:latest`
-- `postgres:16-alpine` (official)
+- 🔍 **Food Search**: Search USDA database with 1M+ foods
+- 📊 **Nutrition Analysis**: Detailed macro and micronutrient breakdown
+- 🍱 **Meal Planning**: Calculate totals for multiple ingredients
+- �� **Persistent Storage**: Save searches and meal plans
+- 📈 **Real-time Monitoring**: Track application health and performance
 
-## ☸️ Kubernetes Deployment
+## 🛠️ Technology Stack
 
-### Prerequisites
+### **Application**
+- **Frontend**: Flask, Jinja2, HTML/CSS
+- **Backend**: Flask, Python 3.11, RESTful API
+- **Database**: PostgreSQL 14
+- **External API**: USDA FoodData Central
 
+### **DevOps & Infrastructure**
+- **Containerization**: Docker (multi-stage builds)
+- **Orchestration**: Kubernetes, Helm Charts
+- **CI/CD**: GitHub Actions
+- **GitOps**: ArgoCD
+- **Monitoring**: Prometheus + Grafana
+- **IaC**: Terraform
+- **Cloud**: AWS (S3, DynamoDB, IAM)
+- **Registry**: Docker Hub
+
+## 📊 DevOps Pipeline
+```
+Code Commit
+    ↓
+GitHub Actions CI
+    ├─ Lint (flake8)
+    └─ Build Docker Images
+        ↓
+    Push to Docker Hub
+    (tagged: commit-hash, latest)
+        ↓
+    Update Git (GitOps repo)
+        ↓
+    ArgoCD Detects Change
+        ↓
+    Auto-Deploy to K8s
+        ↓
+    Prometheus Monitors
+        ↓
+    Grafana Visualizes
+```
+
+## 🏃 Quick Start
+
+### **Prerequisites**
 - minikube
 - kubectl
 - helm
+- Docker
 
-### Deploy to Kubernetes
-
+### **Deploy Everything**
 ```bash
-# Start minikube
+# 1. Start minikube
 minikube start
 
-# Enable ingress
-minikube addons enable ingress
+# 2. Install ArgoCD
+kubectl create namespace argocd
+kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
 
-# Install Helm charts
-helm install meal-prep-db ./helm/database
-helm install meal-prep-backend ./helm/backend
-helm install meal-prep-frontend ./helm/frontend
+# 3. Deploy applications via ArgoCD
+kubectl apply -f https://raw.githubusercontent.com/roybobrovich/meal-prep-gitops/main/apps/
 
-# Get ingress IP
-kubectl get ingress
+# 4. Wait for deployment
+kubectl get pods -w
 
-# Add to /etc/hosts
+# 5. Access application
 echo "$(minikube ip) meal-prep.local" | sudo tee -a /etc/hosts
-
-# Access application
-http://meal-prep.local
 ```
 
-### Helm Charts
+**Access URLs:**
+- Application: http://meal-prep.local
+- Grafana: http://grafana.meal-prep.local
+- ArgoCD: https://argocd.meal-prep.local
 
-Three independent charts for each service:
+## 📁 Repository Structure
 
-**Database (StatefulSet):**
-- Persistent storage with PVC
-- PostgreSQL 16 Alpine
-- Resource limits configured
+This project follows a multi-repository architecture:
 
-**Backend (Deployment):**
-- 2 replicas for high availability
-- Health checks (liveness + readiness)
-- Environment variables via ConfigMap
-- Secrets for sensitive data
+- **[meal-prep-app](https://github.com/roybobrovich/meal-prep-app)** (this repo)
+  - Application source code
+  - Helm charts
+  - CI/CD pipelines
+  
+- **[meal-prep-gitops](https://github.com/roybobrovich/meal-prep-gitops)**
+  - ArgoCD Application definitions
+  - Environment configurations
+  - GitOps workflows
+  
+- **[meal-prep-infrastructure](https://github.com/roybobrovich/meal-prep-infrastructure)**
+  - Terraform infrastructure code
+  - AWS backend configuration
+  - Cloud resources
 
-**Frontend (Deployment):**
-- 2 replicas for load balancing
-- Ingress for external access
-- Session-based state management
+## 🔐 Security Features
 
-## 📁 Project Structure
+- ✅ Branch protection (main branch)
+- ✅ Pull request workflow
+- ✅ Automated code quality checks
+- ✅ Container image scanning
+- ✅ Least-privilege IAM
+- ✅ Encrypted secrets
+- ✅ Network policies
 
-```
-meal-prep-app/
-├── backend/
-│   ├── app.py              # Flask API
-│   ├── models.py           # SQLAlchemy models
-│   ├── requirements.txt    # Python dependencies
-│   ├── Dockerfile          # Container image
-│   └── .env               # Environment variables
-├── frontend/
-│   ├── app.py              # Flask web server
-│   ├── templates/          # HTML templates
-│   ├── static/            # CSS files
-│   ├── requirements.txt
-│   └── Dockerfile
-├── helm/
-│   ├── backend/           # Backend Helm chart
-│   ├── frontend/          # Frontend Helm chart
-│   └── database/          # Database Helm chart
-└── docker-compose.yml     # Local development
-```
+## 📈 Monitoring & Observability
 
-## 🔧 Configuration
+- **Prometheus**: Collects metrics from all services
+- **Grafana**: 15+ pre-built dashboards
+- **Metrics tracked**:
+  - CPU/Memory usage
+  - Request latency
+  - Error rates
+  - Database connections
+  - API response times
 
-### Environment Variables
+## 💰 Cost
 
-**Backend:**
-```
-USDA_API_KEY=your_api_key
-USDA_API_URL=https://api.nal.usda.gov/fdc/v1
-DB_HOST=meal-prep-db
-DB_PORT=5432
-DB_NAME=meal_prep_db
-DB_USER=postgres
-DB_PASSWORD=postgres
-```
+**Total Monthly Cost: <$0.01**
+- Minikube: FREE (local)
+- Docker Hub: FREE (public images)
+- GitHub Actions: FREE (public repo)
+- AWS S3/DynamoDB: ~$0.01/month
 
-**Frontend:**
-```
-BACKEND_URL=http://meal-prep-backend:5000
-SECRET_KEY=your_secret_key
-PORT=3000
-```
+## 🎓 What This Project Demonstrates
 
-## 🧪 Testing
+✅ **Microservices Architecture**  
+✅ **Container Orchestration**  
+✅ **CI/CD Automation**  
+✅ **GitOps Principles**  
+✅ **Infrastructure as Code**  
+✅ **Monitoring & Observability**  
+✅ **Cloud Engineering**  
+✅ **Security Best Practices**  
+✅ **Professional Git Workflow**  
 
-### Local Testing (Docker Compose)
-```bash
-docker-compose up
-# Access: http://localhost:3000
-```
+## 🤝 Contributing
 
-### Kubernetes Testing (minikube)
-```bash
-minikube start
-# Deploy helm charts
-# Access: http://meal-prep.local
-```
+This is a portfolio/learning project, but feedback is welcome!
 
-### Health Checks
-
-```bash
-# Backend health
-curl http://localhost:5000/health
-
-# Frontend health
-curl http://localhost:3000/health
-```
-
-## 📊 API Endpoints
-
-### Backend REST API
-
-```
-GET  /health                    - Health check
-GET  /api/search?query=chicken  - Search food items
-GET  /api/food/{id}            - Get food details
-POST /api/calculate            - Calculate nutrition
-POST /api/meals                - Save meal
-GET  /api/meals                - Get all meals
-GET  /api/meals/{id}           - Get specific meal
-DELETE /api/meals/{id}         - Delete meal
-```
-
-## 🎓 DevOps Practices Demonstrated
-
-✅ **Containerization** - Docker multi-stage builds, optimization
-✅ **Orchestration** - Kubernetes with Helm package manager
-✅ **Microservices** - Independent, scalable services
-✅ **Infrastructure as Code** - Helm charts, declarative configs
-✅ **High Availability** - Multiple replicas, health checks
-✅ **Resource Management** - CPU/Memory limits and requests
-✅ **Networking** - Services, Ingress, internal DNS
-✅ **Storage** - Persistent volumes, StatefulSets
-✅ **Security** - Secrets management, least privilege
-
-## 📝 Future Enhancements
-
-- [x] CI/CD Pipeline (GitHub Actions) ✅
-- [x] Automated Docker builds and push ✅
-- [x] Protected branches ✅
-- [ ] Terraform for AWS EKS
-- [ ] ArgoCD for GitOps
-- [ ] Prometheus & Grafana monitoring
-- [ ] Horizontal Pod Autoscaling
-- [ ] SSL/TLS certificates
-
-## 👤 Author
-
-DevOps Engineering Final Project
+1. Fork the repository
+2. Create feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit changes (`git commit -m 'Add amazing feature'`)
+4. Push to branch (`git push origin feature/amazing-feature`)
+5. Open Pull Request
 
 ## 📄 License
 
-This project is for educational purposes.
+MIT License - See LICENSE file for details
+
+## 👤 Author
+
+**Roy Bobrovich**
+- GitHub: [@roybobrovich](https://github.com/roybobrovich)
+- LinkedIn: [Add your LinkedIn]
+
+## 🙏 Acknowledgments
+
+- USDA FoodData Central API
+- Anthropic Claude (development assistant)
+- Open source community
+
+---
+
