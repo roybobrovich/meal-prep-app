@@ -62,6 +62,47 @@ def health_check():
         'database': db_status
     }), 200
 
+@app.route('/autocomplete', methods=['GET'])
+def autocomplete():
+    """
+    Autocomplete endpoint for food search
+    Returns list of food suggestions as user types
+    """
+    query = request.args.get('q', '')
+    
+    if len(query) < 2:  # Only search if 2+ characters
+        return jsonify([])
+    
+    try:
+        # USDA API search endpoint
+        url = f"{USDA_API_URL}/foods/search"
+        params = {
+            'api_key': USDA_API_KEY,
+            'query': query,
+            'pageSize': 10,  # Limit to 10 suggestions
+            'dataType': ['Foundation', 'SR Legacy']
+        }
+        
+        response = requests.get(url, params=params, timeout=10)
+        response.raise_for_status()
+        data = response.json()
+        
+        # Extract just food names for autocomplete
+        suggestions = []
+        if 'foods' in data:
+            for food in data['foods'][:10]:
+                suggestions.append({
+                    'name': food.get('description', ''),
+                    'fdcId': food.get('fdcId', '')
+                })
+        
+        return jsonify(suggestions)
+        
+    except Exception as e:
+        app.logger.error(f"Autocomplete error: {str(e)}")
+        return jsonify([])
+
+
 @app.route('/api/search', methods=['GET'])
 def search_food():
     """

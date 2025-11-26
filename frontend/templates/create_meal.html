@@ -28,11 +28,152 @@
         <!-- Search for Ingredients -->
         <div class="section">
             <h2>Add Ingredients</h2>
-            <form method="POST" action="/search-ingredient">
-                <input type="text" name="query" placeholder="Search for food (e.g., chicken)" 
-                       value="{{ query if query else '' }}" required>
-                <button type="submit">Search</button>
-            </form>
+<form method="POST" action="/search-ingredient" id="ingredientSearchForm">
+    <div class="autocomplete-container">
+        <input 
+            type="text" 
+            name="query" 
+            id="ingredientInput"
+            placeholder="Search for food (e.g., chicken)" 
+            value="{{ query if query else '' }}" 
+            autocomplete="off"
+            required
+        >
+        <div id="ingredient-autocomplete-list" class="autocomplete-items"></div>
+    </div>
+    <button type="submit">Search</button>
+</form>
+
+<style>
+    .autocomplete-container {
+        position: relative;
+        display: inline-block;
+        width: 100%;
+        max-width: 400px;
+    }
+
+    .autocomplete-items {
+        position: absolute;
+        border: 1px solid #d4d4d4;
+        border-bottom: none;
+        border-top: none;
+        z-index: 99;
+        top: 100%;
+        left: 0;
+        right: 0;
+        background-color: white;
+        max-height: 300px;
+        overflow-y: auto;
+        box-shadow: 0px 4px 6px rgba(0,0,0,0.1);
+    }
+
+    .autocomplete-items div {
+        padding: 10px;
+        cursor: pointer;
+        background-color: #fff;
+        border-bottom: 1px solid #d4d4d4;
+        font-size: 14px;
+    }
+
+    .autocomplete-items div:hover {
+        background-color: #e9e9e9;
+    }
+
+    .autocomplete-active {
+        background-color: #4CAF50 !important;
+        color: white;
+    }
+</style>
+
+<script>
+    const ingredientInput = document.getElementById('ingredientInput');
+    const ingredientAutocompleteList = document.getElementById('ingredient-autocomplete-list');
+    let currentFocus = -1;
+    let debounceTimer;
+
+    ingredientInput.addEventListener('input', function() {
+        const value = this.value;
+        
+        clearTimeout(debounceTimer);
+        closeAllLists();
+        
+        if (value.length < 2) {
+            return;
+        }
+        
+        currentFocus = -1;
+        
+        debounceTimer = setTimeout(async () => {
+            try {
+                const response = await fetch(`/api/autocomplete?q=${encodeURIComponent(value)}`);
+                const suggestions = await response.json();
+                
+                if (suggestions.length === 0) {
+                    return;
+                }
+                
+                suggestions.forEach(suggestion => {
+                    const div = document.createElement('div');
+                    div.innerHTML = suggestion.name;
+                    div.addEventListener('click', function() {
+                        ingredientInput.value = suggestion.name;
+                        closeAllLists();
+                    });
+                    ingredientAutocompleteList.appendChild(div);
+                });
+                
+            } catch (error) {
+                console.error('Autocomplete error:', error);
+            }
+        }, 300);
+    });
+
+    ingredientInput.addEventListener('keydown', function(e) {
+        let items = ingredientAutocompleteList.getElementsByTagName('div');
+        
+        if (e.keyCode === 40) {
+            currentFocus++;
+            addActive(items);
+            e.preventDefault();
+        } else if (e.keyCode === 38) {
+            currentFocus--;
+            addActive(items);
+            e.preventDefault();
+        } else if (e.keyCode === 13) {
+            if (currentFocus > -1) {
+                e.preventDefault();
+                if (items) items[currentFocus].click();
+            }
+        } else if (e.keyCode === 27) {
+            closeAllLists();
+        }
+    });
+
+    function addActive(items) {
+        if (!items) return false;
+        removeActive(items);
+        if (currentFocus >= items.length) currentFocus = 0;
+        if (currentFocus < 0) currentFocus = (items.length - 1);
+        items[currentFocus].classList.add('autocomplete-active');
+    }
+
+    function removeActive(items) {
+        for (let i = 0; i < items.length; i++) {
+            items[i].classList.remove('autocomplete-active');
+        }
+    }
+
+    function closeAllLists() {
+        ingredientAutocompleteList.innerHTML = '';
+        currentFocus = -1;
+    }
+
+    document.addEventListener('click', function(e) {
+        if (e.target !== ingredientInput) {
+            closeAllLists();
+        }
+    });
+</script>
 
             {% if search_results %}
             <div style="margin-top: 20px;">

@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, session
+from flask import Flask, render_template, request, redirect, url_for, session, jsonify
 import requests
 import os
 
@@ -7,6 +7,18 @@ app.secret_key = os.getenv('SECRET_KEY', 'dev-secret-key-change-in-production')
 
 # Backend API URL
 BACKEND_URL = os.getenv('BACKEND_URL', 'http://localhost:5000')
+
+@app.route('/api/autocomplete', methods=['GET'])
+def autocomplete_proxy():
+    """Proxy autocomplete requests to backend"""
+    query = request.args.get('q', '')
+    try:
+        response = requests.get(f'{BACKEND_URL}/autocomplete', params={'q': query})
+        return jsonify(response.json())
+    except Exception as e:
+        app.logger.error(f"Autocomplete proxy error: {str(e)}")
+        return jsonify([])
+
 
 @app.route('/')
 def index():
