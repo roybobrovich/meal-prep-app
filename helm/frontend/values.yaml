@@ -1,50 +1,152 @@
+# ============================================================================
+# Helm Chart Values - Frontend Service
+# ============================================================================
+# Configures the user-facing web application (Flask templates).
+#
+# Frontend vs Backend:
+#   Frontend: Serves HTML pages to browser (this)
+#   Backend: Provides REST API, talks to database, external APIs
+#   
+# Why Separate?
+#   - Microservices architecture (separation of concerns)
+#   - Frontend focuses on presentation
+#   - Backend focuses on data/logic
+#   - Can scale independently
+# ============================================================================
+
+# ============================================================================
+# DEPLOYMENT CONFIGURATION
+# ============================================================================
+
+# Number of frontend pods
+# Why 2 instead of 3?
+#   - Frontend is stateless (no database connections)
+#   - Less CPU/memory intensive than backend
+#   - 2 provides redundancy, saves resources
 replicaCount: 2
 
+# ============================================================================
+# DOCKER IMAGE
+# ============================================================================
 image:
   repository: roybob/meal-prep-frontend
-  pullPolicy: Always
+  pullPolicy: Always   # Always pull latest (development practice)
   tag: "latest"
 
+# ============================================================================
+# SERVICE
+# ============================================================================
 service:
+  # ClusterIP because users don't access frontend directly
+  # They go through Nginx Ingress:
+  #   Browser → Ingress (meal-prep.local) → Frontend Service → Frontend Pods
   type: ClusterIP
   port: 3000
 
+# ============================================================================
+# ENVIRONMENT VARIABLES
+# ============================================================================
 env:
+  # Backend URL - where frontend sends API requests
+  # Uses Kubernetes service discovery
+  # "meal-prep-backend" resolves to backend service IP
   backendUrl: "http://meal-prep-backend:5000"
+  
+  # Flask session secret - encrypts browser cookies
+  # In production, use random string from Kubernetes Secret
+  # Session stores current meal being built
   secretKey: "change-this-in-production-to-random-string"
+  
+  # Port frontend listens on inside container
   port: "3000"
 
+# ============================================================================
+# RESOURCE LIMITS
+# ============================================================================
+# Frontend uses less resources than backend
 resources:
   limits:
-    cpu: 300m
-    memory: 256Mi
+    cpu: 300m       # 0.3 CPU cores max
+    memory: 256Mi   # 256MB RAM max
   requests:
-    cpu: 150m
-    memory: 128Mi
+    cpu: 150m       # 0.15 CPU cores guaranteed
+    memory: 128Mi   # 128MB RAM guaranteed
 
+# ============================================================================
+# HEALTH CHECKS
+# ============================================================================
 livenessProbe:
   httpGet:
     path: /health
     port: 3000
-  initialDelaySeconds: 15
+  initialDelaySeconds: 15   # Faster startup than backend
   periodSeconds: 10
 
 readinessProbe:
   httpGet:
     path: /health
     port: 3000
-  initialDelaySeconds: 5
+  initialDelaySeconds: 5    # Very quick startup
   periodSeconds: 5
 
-# Ingress Configuration
+# ============================================================================
+# INGRESS CONFIGURATION
+# ============================================================================
+# Ingress exposes the service to outside world
+# Acts like a reverse proxy / load balancer
 ingress:
-  enabled: true
-  className: "nginx"
+  enabled: true                # Create Ingress resource
+  className: "nginx"           # Use Nginx Ingress Controller
+  
   annotations:
+    # Rewrite URL path (not needed here but common practice)
     nginx.ingress.kubernetes.io/rewrite-target: /
+  
+  # Host-based routing configuration
   hosts:
-  - host: meal-prep.local
+  - host: meal-prep.local      # Domain name users visit
     paths:
-    - path: /
-      pathType: Prefix
+    - path: /                  # Match all paths
+      pathType: Prefix         # /anything matches
+  
+  # TLS/SSL configuration (HTTPS)
+  # Empty = HTTP only (OK for local development)
+  # Production would have SSL certificate here
   tls: []
+
+# ============================================================================
+# HOW INGRESS WORKS
+# ============================================================================
+# User types: http://meal-prep.local
+#   ↓
+# Browser DNS resolves to: minikube IP (192.168.49.2)
+#   ↓
+# Request hits: Nginx Ingress Controller
+#   ↓
+# Ingress checks: "meal-prep.local" → route to meal-prep-frontend service
+#   ↓
+# Service load-balances to: One of 2 frontend pods
+#   ↓
+# Pod serves: HTML page
+#
+# /etc/hosts entry makes this work locally:
+#   192.168.49.2 meal-prep.local
+# ============================================================================
+
+# ============================================================================
+# WHY THESE VALUES?
+# ============================================================================
+# replicaCount: 2
+#   - One pod can fail, app still works
+#   - Saves resources vs 3 replicas
+#   - Frontend is less critical than backend
+#
+# Lower resource limits:
+#   - Frontend just serves HTML (no heavy computation)
+#   - Backend does USDA API calls, database queries
+#
+# Ingress enabled:
+#   - Only frontend needs external access
+#   - Backend is internal only (security)
+#   - Users interact with frontend only
+# ============================================================================

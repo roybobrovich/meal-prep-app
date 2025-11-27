@@ -1,61 +1,235 @@
-name: CD Pipeline - Build and Push to Docker Hub
+# ============================================================================
+# CD Pipeline - Continuous Deployment
+# ============================================================================
+# Automatically builds and deploys the application when code is merged to main.
+#
+# What is CD?
+#   Continuous Deployment = Automatically deploy every change to production
+#   Code merged to main → Auto build → Auto push to Docker Hub
+#
+# This Pipeline:
+#   1. Builds Docker images
+#   2. Tags images with commit hash (traceability)
+#   3. Pushes to Docker Hub (image registry)
+#   4. Triggers ArgoCD to deploy (GitOps)
+#
+# Triggered By:
+#   - Push to main branch ONLY (after PR merge)
+#
+# Why Separate from CI?
+#   CI = Test every branch (quality gate)
+#   CD = Deploy only main (production release)
+# ============================================================================
 
-# Run on push to main branch
+name: CD Pipeline
+
+# ============================================================================
+# TRIGGERS - When to run this workflow
+# ============================================================================
 on:
   push:
     branches:
-      - main
+      - main  # ONLY run when code is pushed to main (after merge)
 
+# ============================================================================
+# ENVIRONMENT VARIABLES
+# ============================================================================
+# Available to all jobs in this workflow
+env:
+  DOCKERHUB_USERNAME: roybob  # Your Docker Hub username
+  BACKEND_IMAGE: roybob/meal-prep-backend
+  FRONTEND_IMAGE: roybob/meal-prep-frontend
+
+# ============================================================================
+# JOBS - Steps to execute
+# ============================================================================
 jobs:
+  # --------------------------------------------------------------------------
+  # JOB 1: BUILD AND PUSH - Create Docker images and upload to Docker Hub
+  # --------------------------------------------------------------------------
   build-and-push:
     name: Build and Push Docker Images
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest  # GitHub's Ubuntu server
     
     steps:
+      # ------------------------------------------------------------------------
+      # STEP 1: Get the code
+      # ------------------------------------------------------------------------
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v4  # Download repository code
       
+      # ------------------------------------------------------------------------
+      # STEP 2: Setup Docker Buildx
+      # ------------------------------------------------------------------------
+      # Buildx is enhanced Docker builder with better caching, multi-platform
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
       
+      # ------------------------------------------------------------------------
+      # STEP 3: Login to Docker Hub
+      # ------------------------------------------------------------------------
+      # Without login, cannot push images (authentication required)
+      # Uses GitHub Secrets for security (not exposed in logs)
       - name: Login to Docker Hub
         uses: docker/login-action@v3
         with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          username: ${{ env.DOCKERHUB_USERNAME }}
+          # DOCKERHUB_TOKEN is stored in GitHub Secrets
+          # Settings → Secrets and variables → Actions → New repository secret
           password: ${{ secrets.DOCKERHUB_TOKEN }}
       
-      - name: Get short SHA
+      # ------------------------------------------------------------------------
+      # STEP 4: Extract metadata
+      # ------------------------------------------------------------------------
+      # Gets commit hash for tagging images
+      # Why tag with commit hash?
+      #   - Know exactly which code version is in each image
+      #   - Easy rollback (deploy specific commit)
+      #   - Traceability (image → commit → code changes)
+      - name: Extract commit hash
         id: vars
-        run: echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+        run: |
+          # SHORT_SHA = first 7 characters of commit hash
+          # Example: 5fa1d6c instead of 5fa1d6c8a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6
+          echo "SHORT_SHA=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
       
-      - name: Build and Push Backend Image
+      # ------------------------------------------------------------------------
+      # STEP 5: Build and Push Backend Image
+      # ------------------------------------------------------------------------
+      # Builds Docker image and pushes to Docker Hub with TWO tags:
+      #   1. latest (easy testing, always most recent)
+      #   2. commit-hash (production traceability)
+      - name: Build and Push Backend
         uses: docker/build-push-action@v5
         with:
-          context: ./backend
-          push: true
+          context: ./backend          # Build from backend directory
+          file: ./backend/Dockerfile  # Use this Dockerfile
+          push: true                  # Push to Docker Hub (not just build)
           tags: |
-            roybob/meal-prep-backend:latest
-            roybob/meal-prep-backend:${{ steps.vars.outputs.sha_short }}
+            ${{ env.BACKEND_IMAGE }}:latest
+            ${{ env.BACKEND_IMAGE }}:${{ steps.vars.outputs.SHORT_SHA }}
+          # Cache configuration (speeds up rebuilds)
+          # Reuses layers from previous builds if unchanged
+          cache-from: type=registry,ref=${{ env.BACKEND_IMAGE }}:buildcache
+          cache-to: type=registry,ref=${{ env.BACKEND_IMAGE }}:buildcache,mode=max
       
-      - name: Build and Push Frontend Image
+      # ------------------------------------------------------------------------
+      # STEP 6: Build and Push Frontend Image
+      # ------------------------------------------------------------------------
+      - name: Build and Push Frontend
         uses: docker/build-push-action@v5
         with:
           context: ./frontend
+          file: ./frontend/Dockerfile
           push: true
           tags: |
-            roybob/meal-prep-frontend:latest
-            roybob/meal-prep-frontend:${{ steps.vars.outputs.sha_short }}
+            ${{ env.FRONTEND_IMAGE }}:latest
+            ${{ env.FRONTEND_IMAGE }}:${{ steps.vars.outputs.SHORT_SHA }}
+          cache-from: type=registry,ref=${{ env.FRONTEND_IMAGE }}:buildcache
+          cache-to: type=registry,ref=${{ env.FRONTEND_IMAGE }}:buildcache,mode=max
       
-      - name: Success Summary
+      # ------------------------------------------------------------------------
+      # STEP 7: Summary
+      # ------------------------------------------------------------------------
+      - name: Image Push Summary
         run: |
           echo "================================"
-          echo "✅ Images pushed to Docker Hub!"
+          echo "✅ Docker Images Pushed!"
           echo "================================"
-          echo "Backend images:"
-          echo "  - roybob/meal-prep-backend:latest"
-          echo "  - roybob/meal-prep-backend:${{ steps.vars.outputs.sha_short }}"
+          echo "Backend:"
+          echo "  - ${{ env.BACKEND_IMAGE }}:latest"
+          echo "  - ${{ env.BACKEND_IMAGE }}:${{ steps.vars.outputs.SHORT_SHA }}"
           echo ""
-          echo "Frontend images:"
-          echo "  - roybob/meal-prep-frontend:latest"
-          echo "  - roybob/meal-prep-frontend:${{ steps.vars.outputs.sha_short }}"
+          echo "Frontend:"
+          echo "  - ${{ env.FRONTEND_IMAGE }}:latest"
+          echo "  - ${{ env.FRONTEND_IMAGE }}:${{ steps.vars.outputs.SHORT_SHA }}"
           echo "================================"
+          echo ""
+          echo "Next Step: ArgoCD will detect new 'latest' tag and auto-deploy"
+          echo "View deployment: http://argocd.meal-prep.local"
+
+# ============================================================================
+# COMPLETE WORKFLOW FLOW
+# ============================================================================
+# Developer Workflow:
+#   1. Create feature branch: git checkout -b feature/my-feature
+#   2. Make code changes
+#   3. Push to GitHub: git push origin feature/my-feature
+#   4. CI Pipeline runs (lint + build test) ← Happens on feature branch
+#   5. Create Pull Request to main
+#   6. CI runs again on PR
+#   7. Code review + approval
+#   8. Merge PR to main
+#   9. CD Pipeline runs ← THIS WORKFLOW (only on main)
+#   10. Docker images pushed to Docker Hub
+#   11. ArgoCD detects new images (polls every 3 minutes)
+#   12. ArgoCD syncs: pulls new images to Kubernetes
+#   13. Kubernetes rolling update: new pods created, old pods terminated
+#   14. Users see new features (zero downtime)
+#
+# Image Tagging Strategy:
+#   latest tag:
+#     - Always points to most recent build
+#     - Good for development/testing
+#     - Helm uses: image: roybob/meal-prep-backend:latest
+#     - pullPolicy: Always ensures fresh pull
+#
+#   commit-hash tag (5fa1d6c):
+#     - Immutable (never changes)
+#     - Production best practice
+#     - Easy rollback: change Helm to tag: "abc123d"
+#     - Audit trail: image → commit → code changes → developer
+#
+# Why Two Tags?
+#   - latest: Convenience (auto-deploy latest code)
+#   - commit-hash: Safety (know exact version, rollback capability)
+#
+# ArgoCD Integration:
+#   - ArgoCD monitors meal-prep-gitops repository
+#   - GitOps repo has Helm values: image: latest
+#   - When new image pushed, ArgoCD detects SHA change
+#   - ArgoCD syncs: kubectl apply new manifests
+#   - Kubernetes pulls new image from Docker Hub
+#
+# Security:
+#   - DOCKERHUB_TOKEN stored in GitHub Secrets (encrypted)
+#   - Never appears in logs or code
+#   - Generated from Docker Hub: Account Settings → Security → New Access Token
+#   - Added to GitHub: Repo Settings → Secrets → Actions → New secret
+#
+# Caching:
+#   - BuildKit cache stores layers in Docker Hub
+#   - Subsequent builds reuse unchanged layers
+#   - Example: requirements.txt unchanged → skip pip install (saves 2-3 min)
+#   - Only rebuilds changed layers
+#
+# Cost:
+#   - GitHub Actions: 2,000 free minutes/month (plenty for this project)
+#   - Docker Hub: Unlimited public repositories (free tier)
+#   - This workflow: ~3-5 minutes per run
+#   - Typical month: ~50 runs = 150-250 minutes (well under limit)
+# ============================================================================
+
+# ============================================================================
+# TROUBLESHOOTING
+# ============================================================================
+# "Error: denied: requested access to the resource is denied"
+#   → DOCKERHUB_TOKEN incorrect or expired
+#   → Regenerate token on Docker Hub
+#   → Update secret in GitHub Settings
+#
+# "Image not updating in Kubernetes"
+#   → Check pullPolicy: Always in Helm values
+#   → Force pod restart: kubectl delete pods -l app=meal-prep-backend
+#   → Check ArgoCD sync status: kubectl get applications -n argocd
+#
+# "Build failing on main but passed on PR"
+#   → Merge conflict or missing dependency
+#   → Pull main locally: git pull origin main
+#   → Rebuild locally: docker build ./backend
+#
+# "Out of GitHub Actions minutes"
+#   → Optimize workflow (remove unnecessary steps)
+#   → Use self-hosted runner (free, unlimited)
+#   → Upgrade to paid GitHub plan ($4/month for 3,000 minutes)
+# ============================================================================
