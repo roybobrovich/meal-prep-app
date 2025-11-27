@@ -1,78 +1,126 @@
+# ============================================================================
+# CI Pipeline - Continuous Integration
+# ============================================================================
+# Automatically tests code quality every time you push or create a PR.
+#
+# What is CI?
+#   Continuous Integration = Automatically test every code change
+#   Catches bugs early, prevents broken code from merging
+#
+# This Pipeline:
+#   1. Lints Python code (checks for errors)
+#   2. Builds Docker images (ensures they compile)
+#   3. Runs on ALL branches and pull requests
+#
+# Triggered By:
+#   - Push to any branch (push to feature/my-feature)
+#   - Pull request to main branch
+# ============================================================================
+
 name: CI Pipeline
 
-# When to run this workflow
+# ============================================================================
+# TRIGGERS - When to run this workflow
+# ============================================================================
 on:
   push:
     branches:
-      - '**'  # Run on all branches
+      - '**'  # Run on ALL branches (main, feature/*, etc.)
   pull_request:
     branches:
-      - main
+      - main  # Run when PR is opened/updated targeting main
 
+# ============================================================================
+# JOBS - Steps to execute
+# ============================================================================
 jobs:
-  # Job 1: Check Python code for errors
+  # --------------------------------------------------------------------------
+  # JOB 1: LINT - Check code quality
+  # --------------------------------------------------------------------------
   lint:
     name: Lint Python Code
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest  # Run on GitHub's Ubuntu server
     
     steps:
+      # Step 1: Download code from repository
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v4  # GitHub's official action
       
+      # Step 2: Install Python
       - name: Set up Python 3.12
         uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: '3.12'  # Match production Python version
       
+      # Step 3: Install linter
       - name: Install flake8 (Python linter)
         run: |
           pip install flake8
       
+      # Step 4: Lint backend code
+      # What flake8 checks:
+      #   E9: Syntax errors (code won't run)
+      #   F63, F7, F82: Undefined names, syntax errors
+      #   --show-source: Show the line with error
+      #   --statistics: Show count of each error type
       - name: Lint Backend Code
         run: |
           echo "Checking backend code..."
+          # Critical errors only (fail build)
           flake8 backend --count --select=E9,F63,F7,F82 --show-source --statistics
+          # Style warnings (don't fail build)
           flake8 backend --count --exit-zero --max-line-length=127 --statistics
       
+      # Step 5: Lint frontend code
       - name: Lint Frontend Code
         run: |
           echo "Checking frontend code..."
           flake8 frontend --count --select=E9,F63,F7,F82 --show-source --statistics
           flake8 frontend --count --exit-zero --max-line-length=127 --statistics
 
-  # Job 2: Build Docker images
+  # --------------------------------------------------------------------------
+  # JOB 2: BUILD - Test Docker image compilation
+  # --------------------------------------------------------------------------
   build:
     name: Build Docker Images
     runs-on: ubuntu-latest
-    needs: lint  # Only runs if lint succeeds
+    needs: lint  # Only run if lint succeeds
     
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
       
+      # Set up Docker Buildx (enhanced Docker build)
+      # Buildx enables advanced features like multi-platform builds
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
       
+      # Build backend image (don't push, just test)
+      # If this fails, code has Docker/dependency issues
       - name: Build Backend Docker Image
         run: |
           echo "Building backend image..."
           docker build -t meal-prep-backend:test ./backend
       
+      # Build frontend image (don't push, just test)
       - name: Build Frontend Docker Image
         run: |
           echo "Building frontend image..."
           docker build -t meal-prep-frontend:test ./frontend
       
+      # List built images (proof it worked)
       - name: List built images
         run: |
           echo "Successfully built images:"
           docker images | grep meal-prep
 
-  # Job 3: Success summary
+  # --------------------------------------------------------------------------
+  # JOB 3: SUMMARY - Report success
+  # --------------------------------------------------------------------------
   summary:
     name: CI Success
     runs-on: ubuntu-latest
-    needs: [lint, build]
+    needs: [lint, build]  # Only runs if BOTH lint and build succeed
     
     steps:
       - name: Success Message
@@ -82,3 +130,26 @@ jobs:
           echo "✅ Code linting passed"
           echo "✅ Docker images built"
           echo "================================"
+
+# ============================================================================
+# WORKFLOW BEHAVIOR
+# ============================================================================
+# Branch Protection Integration:
+#   If you enable branch protection on main:
+#     - PRs cannot merge until CI passes
+#     - Prevents broken code from entering main
+#     - Red X on PR = CI failed, fix before merging
+#     - Green checkmark = CI passed, safe to merge
+#
+# What CI Catches:
+#   ✅ Syntax errors (code won't run)
+#   ✅ Undefined variables
+#   ✅ Import errors
+#   ✅ Docker build failures
+#   ✅ Missing dependencies
+#
+# What CI Doesn't Catch:
+#   ❌ Logic bugs (need unit tests)
+#   ❌ Runtime errors (need integration tests)
+#   ❌ Performance issues (need load tests)
+# ============================================================================

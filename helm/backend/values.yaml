@@ -1,51 +1,157 @@
-# Default values for meal-prep-backend
+# ============================================================================
+# Helm Chart Values - Backend Service
+# ============================================================================
+# This file configures how the backend is deployed to Kubernetes.
+#
+# Helm Concept:
+#   Helm is a package manager for Kubernetes (like apt/yum for Linux)
+#   Templates (in templates/) + Values (this file) = Kubernetes YAML
+#   
+# What This Configures:
+#   - How many pods to run (replicaCount)
+#   - Which Docker image to use
+#   - Environment variables
+#   - Resource limits (CPU/memory)
+#   - Health checks
+#
+# Usage:
+#   helm install meal-prep-backend . -f values.yaml
+# ============================================================================
 
-replicaCount: 3  # How many backend pods to run
+# ============================================================================
+# DEPLOYMENT CONFIGURATION
+# ============================================================================
 
+# Number of backend pods to run
+# Why 3?
+#   - High availability (if one crashes, 2 still serve traffic)
+#   - Load balancing (distributes requests across pods)
+#   - Rolling updates (can update one at a time without downtime)
+replicaCount: 3
+
+# ============================================================================
+# DOCKER IMAGE CONFIGURATION
+# ============================================================================
 image:
+  # Docker Hub repository where image is stored
+  # Built by GitHub Actions and pushed to Docker Hub
   repository: roybob/meal-prep-backend
-  pullPolicy: Always  # ← Always for DockerHub latest tag
+  
+  # When to pull new image from Docker Hub
+  # Always = Pull on every pod start (ensures latest code)
+  # IfNotPresent = Only pull if not cached (faster but might use old image)
+  # Never = Never pull (use local cache only)
+  pullPolicy: Always
+  
+  # Image tag to use
+  # "latest" = Most recent build (good for development)
+  # Could also use commit hash: "5fa1d6c" (better for production)
   tag: "latest"
 
+# ============================================================================
+# KUBERNETES SERVICE CONFIGURATION
+# ============================================================================
 service:
+  # Service type determines how service is exposed
+  # ClusterIP = Internal only (only accessible within cluster)
+  #             Frontend can reach backend via http://meal-prep-backend:5000
+  #             Users cannot directly access (must go through frontend)
+  # LoadBalancer = External IP (cloud providers only)
+  # NodePort = Exposed on each node's IP
   type: ClusterIP
+  
+  # Port the service listens on
+  # Other pods call: http://meal-prep-backend:5000
   port: 5000
 
+# ============================================================================
+# ENVIRONMENT VARIABLES
+# ============================================================================
+# These are injected into container as environment variables
+# Application reads them with os.getenv()
 env:
   # USDA API Configuration
+  # API key for FoodData Central (free tier, public)
   usdaApiKey: "kNXQXGL92zW4fnMe5VxRHM6dHUvxaXwGsZ0MqUJ0"
   usdaApiUrl: "https://api.nal.usda.gov/fdc/v1"
   
   # Database Configuration
-  dbHost: "meal-prep-db"  # Service name of database
+  # Uses Kubernetes service discovery: meal-prep-db = database service name
+  # Kubernetes DNS automatically resolves to database pod IP
+  dbHost: "meal-prep-db"
   dbPort: "5432"
   dbName: "meal_prep_db"
   dbUser: "postgres"
-  # dbPassword is in secret!
+  # dbPassword comes from Secret (not here for security)
+  # See templates/deployment.yaml - reads from meal-prep-db-secret
   
   # Flask Configuration
-  flaskEnv: "production"
-  flaskDebug: "False"
+  flaskEnv: "production"   # Disables debug mode, detailed errors
+  flaskDebug: "False"      # No auto-reload, secure error pages
   port: "5000"
 
+# ============================================================================
+# RESOURCE LIMITS
+# ============================================================================
+# Prevents one pod from consuming all cluster resources
+# Kubernetes enforces these limits
 resources:
+  # Limits = Maximum allowed (pod killed if exceeded)
   limits:
-    cpu: 500m
-    memory: 512Mi
+    cpu: 500m       # 0.5 CPU cores (500 millicores)
+    memory: 512Mi   # 512 megabytes RAM
+  
+  # Requests = Guaranteed allocation (Kubernetes reserves this)
+  # Used for scheduling decisions (pod placed on node with available resources)
   requests:
-    cpu: 250m
-    memory: 256Mi
+    cpu: 250m       # 0.25 CPU cores guaranteed
+    memory: 256Mi   # 256MB RAM guaranteed
 
+# ============================================================================
+# HEALTH CHECKS
+# ============================================================================
+# Kubernetes uses these to determine pod health
+
+# Liveness Probe - "Is the app alive?"
+# If this fails, Kubernetes RESTARTS the pod
+# Use case: Detect deadlocks, crashes, infinite loops
 livenessProbe:
   httpGet:
-    path: /health
+    path: /health              # Endpoint to check
     port: 5000
-  initialDelaySeconds: 30
-  periodSeconds: 10
+  initialDelaySeconds: 30      # Wait 30s after start before first check
+  periodSeconds: 10            # Check every 10 seconds
 
+# Readiness Probe - "Is the app ready for traffic?"
+# If this fails, Kubernetes REMOVES pod from service (no traffic sent)
+# Use case: App is starting up, database not ready, initialization
 readinessProbe:
   httpGet:
     path: /health
     port: 5000
-  initialDelaySeconds: 10
-  periodSeconds: 5
+  initialDelaySeconds: 10      # Check sooner (app might be ready)
+  periodSeconds: 5             # Check more frequently
+
+# ============================================================================
+# WHY THESE VALUES?
+# ============================================================================
+# replicaCount: 3
+#   - Survives 1 pod failure
+#   - Allows rolling updates without downtime
+#   - Distributes load
+#
+# pullPolicy: Always
+#   - Always gets latest code from Docker Hub
+#   - Good for development with "latest" tag
+#   - Production would use specific commit hash
+#
+# resources:
+#   - Limits prevent runaway processes
+#   - Requests ensure minimum performance
+#   - Values based on testing (can adjust)
+#
+# probes:
+#   - Liveness: Restart unhealthy pods
+#   - Readiness: Don't send traffic until ready
+#   - Different timings because readiness matters sooner
+# ============================================================================
